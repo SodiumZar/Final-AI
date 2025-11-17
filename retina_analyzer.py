@@ -9,7 +9,7 @@ try:
     from config import GENAI_API_KEY, GENAI_MODEL
 except ImportError:
     GENAI_API_KEY = "AIzaSyDcTvsNocVzRQKp8-5L00b6XNRY2S1ZnGc"
-    GENAI_MODEL = "gemini-2.0-flash-exp"
+    GENAI_MODEL = "gemini-2.5-flash"
 
 class RetinaAnalyzer:
     def __init__(self, api_key=None):

@@ -30,7 +30,7 @@ Successfully integrated GenAI (Google Gemini) to analyze predicted retina images
 
 ### 5. **AI Medical Summary** ✓
 - **Implementation**: `retina_analyzer.RetinaAnalyzer`
-- **AI Model**: Google Gemini 2.0 Flash
+- **AI Model**: Google Gemini 2.5 Flash
 - **Content**:
   - Overall Assessment
   - Vessel Characteristics

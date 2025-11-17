@@ -78,13 +78,19 @@ def calculate_vessel_density(mask):
 def calculate_tortuosity(mask):
     """
     Calculate tortuosity score based on vessel curvature
+    Uses the ratio of skeleton pixel count to endpoint distance
     Args:
         mask: Binary segmentation mask (numpy array)
     Returns:
-        tortuosity_score: Average tortuosity measure
+        tortuosity_score: Normalized tortuosity (1.0 = straight, >1.3 = tortuous)
     """
-    # Skeletonize the mask to get vessel centerlines
-    skeleton = skeletonize(mask > 0)
+    # Clean up the mask first to reduce noise
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    mask_cleaned = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+    mask_cleaned = cv2.morphologyEx(mask_cleaned, cv2.MORPH_OPEN, kernel)
+    
+    # Skeletonize the cleaned mask to get vessel centerlines
+    skeleton = skeletonize(mask_cleaned > 0)
     
     # Find connected components
     num_labels, labels = cv2.connectedComponents(skeleton.astype(np.uint8))
@@ -92,30 +98,59 @@ def calculate_tortuosity(mask):
     tortuosity_scores = []
     
     for label in range(1, num_labels):
-        # Get points for this vessel
+        # Get points for this vessel segment
         points = np.column_stack(np.where(labels == label))
         
-        if len(points) < 10:  # Skip very short segments
+        if len(points) < 50:  # Only process substantial vessels
             continue
         
-        # Calculate path length (actual vessel length)
-        path_length = 0
-        for i in range(len(points) - 1):
-            path_length += np.linalg.norm(points[i] - points[i+1])
+        # Find the two farthest points (true endpoints)
+        max_dist = 0
         
-        # Calculate Euclidean distance (straight line)
-        euclidean_dist = np.linalg.norm(points[0] - points[-1])
+        # Sample points to find true endpoints efficiently
+        sample_size = min(30, len(points))
+        sample_indices = np.linspace(0, len(points)-1, sample_size, dtype=int)
         
-        # Avoid division by zero
-        if euclidean_dist > 0:
-            tortuosity = path_length / euclidean_dist
-            tortuosity_scores.append(tortuosity)
+        for i in sample_indices:
+            for j in sample_indices:
+                if i < j:
+                    dist = np.linalg.norm(points[i] - points[j])
+                    if dist > max_dist:
+                        max_dist = dist
+        
+        euclidean_dist = max_dist
+        
+        # Only process longer vessels (at least 80 pixels for reliability)
+        if euclidean_dist < 80:
+            continue
+        
+        # Calculate raw ratio: pixel_count / euclidean_dist
+        # For straight vessels: ~1.0
+        # For curved vessels: >1.0 (higher = more curved)
+        pixel_count = len(points)
+        raw_ratio = pixel_count / euclidean_dist
+        
+        # Only include reasonable values (filter out artifacts)
+        # Tortuosity cannot be < 1.0 (path cannot be shorter than straight line)
+        if 1.0 <= raw_ratio < 2.5:  # Valid range
+            tortuosity_scores.append(raw_ratio)
     
-    if tortuosity_scores:
-        avg_tortuosity = np.mean(tortuosity_scores)
-        return round(avg_tortuosity, 3)
+    if len(tortuosity_scores) >= 3:  # Need at least 3 vessels for reliable measurement
+        # Sort and exclude top 20% outliers
+        tortuosity_scores.sort()
+        cutoff_index = int(len(tortuosity_scores) * 0.8)
+        filtered_scores = tortuosity_scores[:cutoff_index]
+        
+        # Use median of filtered scores
+        avg_tortuosity = np.median(filtered_scores)
+        # Ensure result is at least 1.0 (cannot be shorter than straight line)
+        return round(max(1.0, avg_tortuosity), 3)
+    elif tortuosity_scores:
+        # If we have 1-2 vessels, just use median
+        avg_tortuosity = np.median(tortuosity_scores)
+        return round(max(1.0, avg_tortuosity), 3)
     else:
-        return 1.0  # Default value if no vessels detected
+        return 1.0  # Default for no vessels detected
 
 
 """ Function to analyze vessel characteristics """
