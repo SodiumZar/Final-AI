@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, send_from_directory
 from predict import predict
 from utils import create_overlay, analyze_vessels
 from retina_analyzer import RetinaAnalyzer
+from image_validator import validate_image_for_analysis
 import os
 import cv2
 import numpy as np
@@ -39,6 +40,13 @@ def index():
             # Save the uploaded file
             image_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
             file.save(image_path)
+
+            # Validate if it's a retina/fundus image
+            is_valid, validation_msg = validate_image_for_analysis(image_path, min_confidence=0.6)
+            if not is_valid:
+                # Return error page with validation message (no vessel metrics)
+                return render_template('index.html', 
+                                     error_message=validation_msg)
 
             # Make prediction (supports fallback returning dict)
             result = predict(image_path)

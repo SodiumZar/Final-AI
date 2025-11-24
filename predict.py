@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import torch
+import pickle
 import os
 
 from model import build_unet
@@ -37,9 +38,13 @@ def _classical_vessel_segmentation(image_path: str) -> np.ndarray:
     return mask
 
 
-def predict(image_path, checkpoint_path="files/checkpoint.pth"):
+def predict(image_path, checkpoint_path="files/checkpoint_compatible.pth", threshold=0.1):
     """
     Predict vessel mask for the given image.
+    Args:
+        image_path: Path to the retina image
+        checkpoint_path: Path to model checkpoint
+        threshold: Prediction threshold (default 0.1, lower = more vessels detected)
     Returns either a binary mask (np.uint8 0/1) or a dict { 'mask': np.ndarray, 'warning': str } when fallback is used.
     """
     # Try model-based prediction first
@@ -47,12 +52,22 @@ def predict(image_path, checkpoint_path="files/checkpoint.pth"):
 
     try:
         model = build_unet().to(device)
-        # Safer load for potentially incompatible checkpoints
+        # Try loading checkpoint with weights_only compatibility
+        state = None
         try:
+            # Try weights_only=True first (PyTorch 2.6+ default)
             state = torch.load(checkpoint_path, map_location=device, weights_only=True)
-        except TypeError:
-            # Older PyTorch without weights_only
-            state = torch.load(checkpoint_path, map_location=device)
+        except (TypeError, RuntimeError, pickle.UnpicklingError) as e:
+            # If weights_only=True fails, try weights_only=False
+            # This allows loading older checkpoints with custom objects
+            try:
+                state = torch.load(checkpoint_path, map_location=device, weights_only=False)
+            except TypeError:
+                # Older PyTorch versions don't support weights_only parameter
+                state = torch.load(checkpoint_path, map_location=device)
+
+        if state is None:
+            raise RuntimeError("Failed to load checkpoint")
 
         if isinstance(state, dict):
             # Load as state dict (may be under 'state_dict')
@@ -76,7 +91,8 @@ def predict(image_path, checkpoint_path="files/checkpoint.pth"):
             pred_y = torch.sigmoid(pred_y)
             pred_y = pred_y[0].cpu().numpy()  # (1, H, W)
             pred_y = np.squeeze(pred_y, axis=0)  # (H, W)
-            pred_y = (pred_y > 0.5).astype(np.uint8)
+            # Use configurable threshold (default 0.3 for better vessel detection)
+            pred_y = (pred_y > threshold).astype(np.uint8)
 
         return pred_y
 

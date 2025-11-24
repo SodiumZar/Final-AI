@@ -8,7 +8,7 @@ import os
 try:
     from config import GENAI_API_KEY, GENAI_MODEL
 except ImportError:
-    GENAI_API_KEY = "AIzaSyDcTvsNocVzRQKp8-5L00b6XNRY2S1ZnGc"
+    GENAI_API_KEY = "AIzaSyAVK6N6iaN3yDDZVBoDe9isPVY0UD8IqvA"
     GENAI_MODEL = "gemini-2.5-flash"
 
 class RetinaAnalyzer:
@@ -63,7 +63,7 @@ Based on the retina image and its blood vessel segmentation, provide a comprehen
 1. **Overall Assessment**: Brief evaluation of the retinal blood vessel pattern (2-3 sentences)
 
 2. **Vessel Characteristics**: 
-   - Comment on vessel density (normal range: 10-20%)
+   - Comment on vessel density (normal range: 7-15%)
    - Comment on tortuosity (normal range: 1.0-1.3)
    - Vessel distribution pattern
 
@@ -79,25 +79,29 @@ Based on the retina image and its blood vessel segmentation, provide a comprehen
 Keep the response professional, clear, and medically accurate. Format using bullet points and clear sections."""
 
         try:
-            # Upload the image file
-            uploaded_file = self.client.files.upload(path=original_image_path)
+            # Use PIL to load the image for inline content
+            print(f"[GenAI] Loading image: {original_image_path}")
             
-            # Generate analysis using GenAI
+            from PIL import Image
+            img = Image.open(original_image_path)
+            
+            # Generate analysis using GenAI with inline image
+            print(f"[GenAI] Generating analysis with model: {self.model}")
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=[
-                    uploaded_file,
+                    img,
                     prompt
                 ]
             )
             
-            # Clean up uploaded file
-            self.client.files.delete(name=uploaded_file.name)
+            print(f"[GenAI] Analysis generated successfully")
             
             return response.text
             
         except Exception as e:
-            print(f"Error in GenAI analysis: {str(e)}")
+            print(f"[GenAI ERROR] {type(e).__name__}: {str(e)}")
+            print(f"[GenAI] Falling back to automated summary")
             return self._generate_fallback_summary(vessel_metrics)
     
     def _generate_fallback_summary(self, vessel_metrics):
@@ -112,12 +116,12 @@ Keep the response professional, clear, and medically accurate. Format using bull
 The retinal blood vessel segmentation has been successfully completed. The analysis reveals a vessel density of {density}% with a tortuosity score of {tortuosity}.
 
 **Vessel Characteristics:**
-- Vessel Density: {density}% {"(Within normal range)" if 10 <= density <= 20 else "(Outside typical range)"}
+- Vessel Density: {density}% {"(Within normal range)" if 7 <= density <= 12 else "(Outside typical range)"}
 - Tortuosity Score: {tortuosity} {"(Normal)" if tortuosity < 1.3 else "(Elevated - may indicate vessel abnormalities)"}
 - Total Vessel Pixels: {vessel_metrics['total_vessel_pixels']}
 
 **Clinical Observations:**
-- {"The vessel density appears normal for a healthy retina." if 10 <= density <= 20 else "The vessel density is outside the typical range, which may warrant further investigation."}
+- {"The vessel density appears normal for a healthy retina." if 7 <= density <= 15 else "The vessel density is outside the typical range, which may warrant further investigation."}
 - {"Vessel paths show normal curvature." if tortuosity < 1.3 else "Elevated tortuosity may indicate hypertensive or diabetic changes."}
 
 **Recommendations:**

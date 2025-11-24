@@ -46,6 +46,11 @@ def create_overlay(original_image, mask):
     elif original_image.shape[2] == 3:
         original_image = cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB)
     
+    # Resize mask to match original image dimensions if needed
+    if mask.shape != original_image.shape[:2]:
+        mask = cv2.resize(mask, (original_image.shape[1], original_image.shape[0]), 
+                        interpolation=cv2.INTER_NEAREST)
+    
     # Create colored mask (red vessels)
     overlay = original_image.copy().astype(np.float32)
     red_mask = np.zeros_like(overlay)

@@ -1,8 +1,8 @@
 # Configuration file for Retina Analysis System
 
 # Google GenAI Configuration
-GENAI_API_KEY = "AIzaSyDcTvsNocVzRQKp8-5L00b6XNRY2S1ZnGc"
-GENAI_MODEL = "gemini-2.0-flash-exp"
+GENAI_API_KEY = "AIzaSyAVK6N6iaN3yDDZVBoDe9isPVY0UD8IqvA"
+GENAI_MODEL = "gemini-2.5-flash"
 
 # Flask Configuration
 DEBUG_MODE = True
